@@ -285,8 +285,8 @@ func serveSession(sesh *mux.Session, ci ClientInfo, user *ActiveUser, sta *State
 				continue
 			}
 		}
-		proxyAddr := sta.ProxyBook[ci.ProxyMethod]
-		localConn, err := sta.ProxyDialer.Dial(proxyAddr.Network(), proxyAddr.String())
+		dialer := sta.ProxyBook[ci.ProxyMethod]
+		localConn, err := dialer.Dialer.Dial(dialer.Network, dialer.RemoteAddr.String())
 		if err != nil {
 			log.Errorf("Failed to connect to %v: %v", ci.ProxyMethod, err)
 			user.CloseSession(ci.SessionId, "Failed to connect to proxy server")

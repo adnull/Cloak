@@ -31,7 +31,7 @@ var u32 = binary.BigEndian.Uint32
 func parseExtensions(input []byte) (ret map[[2]byte][]byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = errors.New("Malformed Extensions")
+			err = errors.New("malformed extensions")
 		}
 	}()
 	pointer := 0
@@ -96,7 +96,7 @@ func addRecordLayer(input []byte, typ []byte, ver []byte) []byte {
 func parseClientHello(data []byte) (ret *ClientHello, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = errors.New("Malformed ClientHello")
+			err = errors.New("malformed ClientHello")
 		}
 	}()
 
@@ -110,14 +110,14 @@ func parseClientHello(data []byte) (ret *ClientHello, err error) {
 	// Handshake Type
 	handshakeType := peeled[pointer]
 	if handshakeType != 0x01 {
-		return ret, errors.New("Not a ClientHello")
+		return ret, errors.New("not a ClientHello")
 	}
 	pointer += 1
 	// Length
 	length := int(u32(append([]byte{0x00}, peeled[pointer:pointer+3]...)))
 	pointer += 3
 	if length != len(peeled[pointer:]) {
-		return ret, errors.New("Hello length doesn't match")
+		return ret, errors.New("hello length doesn't match")
 	}
 	// Client Version
 	clientVersion := peeled[pointer : pointer+2]

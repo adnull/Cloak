@@ -15,6 +15,13 @@ import (
 	"github.com/cbeuw/Cloak/internal/server/usermanager"
 )
 
+// Record for each proxy method entry
+type ProxyBookRecord struct {
+	Network    string
+	RemoteAddr net.Addr
+	Dialer     common.Dialer
+}
+
 type RawConfig struct {
 	ProxyBook    map[string][]string
 	BindAddr     []string
@@ -29,7 +36,7 @@ type RawConfig struct {
 
 // State type stores the global state of the program
 type State struct {
-	ProxyBook   map[string]net.Addr
+	ProxyBook   map[string]*ProxyBookRecord
 	ProxyDialer common.Dialer
 
 	WorldState common.WorldState
@@ -81,30 +88,48 @@ func parseRedirAddr(redirAddr string) (net.Addr, string, error) {
 	return redirHost, port, nil
 }
 
-func parseProxyBook(bookEntries map[string][]string) (map[string]net.Addr, error) {
-	proxyBook := map[string]net.Addr{}
+func makeProxyBook(bookEntries map[string][]string, dialer common.Dialer) (map[string]*ProxyBookRecord, error) {
+	proxyBook := make(map[string]*ProxyBookRecord, len(bookEntries))
 	for name, pair := range bookEntries {
 		name = strings.ToLower(name)
-		if len(pair) != 2 {
+		if len(pair) < 2 {
 			return nil, fmt.Errorf("invalid proxy endpoint and address pair for %v: %v", name, pair)
 		}
 		network := strings.ToLower(pair[0])
+		record := ProxyBookRecord{Dialer: dialer}
 		switch network {
 		case "tcp":
+			record.Network = "tcp"
 			addr, err := net.ResolveTCPAddr("tcp", pair[1])
 			if err != nil {
 				return nil, err
 			}
-			proxyBook[name] = addr
-			continue
+			record.RemoteAddr = addr
+			if len(pair) > 2 {
+				laddr, err := net.ResolveTCPAddr("tcp", pair[2])
+				if err != nil {
+					return nil, err
+				}
+				record.Dialer.(*net.Dialer).LocalAddr = laddr
+			}
 		case "udp":
+			record.Network = "udp"
 			addr, err := net.ResolveUDPAddr("udp", pair[1])
 			if err != nil {
 				return nil, err
 			}
-			proxyBook[name] = addr
+			record.RemoteAddr = addr
+			if len(pair) > 2 {
+				laddr, err := net.ResolveUDPAddr("udp", pair[2])
+				if err != nil {
+					return nil, err
+				}
+				record.Dialer.(*net.Dialer).LocalAddr = laddr
+			}
+		default:
 			continue
 		}
+		proxyBook[name] = &record
 	}
 	return proxyBook, nil
 }
@@ -135,7 +160,6 @@ func ParseConfig(conf string) (raw RawConfig, err error) {
 func InitState(preParse RawConfig, worldState common.WorldState) (sta *State, err error) {
 	sta = &State{
 		BypassUID:   make(map[[16]byte]struct{}),
-		ProxyBook:   map[string]net.Addr{},
 		UsedRandom:  map[[32]byte]int64{},
 		RedirDialer: &net.Dialer{},
 		WorldState:  worldState,
@@ -156,10 +180,11 @@ func InitState(preParse RawConfig, worldState common.WorldState) (sta *State, er
 		sta.Panel = MakeUserPanel(manager)
 	}
 
+	var dialer *net.Dialer
 	if preParse.KeepAlive <= 0 {
-		sta.ProxyDialer = &net.Dialer{KeepAlive: -1}
+		dialer = &net.Dialer{KeepAlive: -1}
 	} else {
-		sta.ProxyDialer = &net.Dialer{KeepAlive: time.Duration(preParse.KeepAlive) * time.Second}
+		dialer = &net.Dialer{KeepAlive: time.Duration(preParse.KeepAlive) * time.Second}
 	}
 
 	sta.RedirHost, sta.RedirPort, err = parseRedirAddr(preParse.RedirAddr)
@@ -168,7 +193,7 @@ func InitState(preParse RawConfig, worldState common.WorldState) (sta *State, er
 		return
 	}
 
-	sta.ProxyBook, err = parseProxyBook(preParse.ProxyBook)
+	sta.ProxyBook, err = makeProxyBook(preParse.ProxyBook, dialer)
 	if err != nil {
 		err = fmt.Errorf("unable to parse ProxyBook: %v", err)
 		return

@@ -213,7 +213,9 @@ func establishSession(lcc client.LocalConnConfig, rcc client.RemoteConnConfig, a
 	// set up server
 	ckServerToProxyD, proxyFromCkServerL := connutil.DialerListener(10 * 1024)
 	ckServerToWebD, redirFromCkServerL := connutil.DialerListener(10 * 1024)
-	serverState.ProxyDialer = ckServerToProxyD
+	for method := range serverState.ProxyBook {
+		serverState.ProxyBook[method].Dialer = ckServerToProxyD
+	}
 	serverState.RedirDialer = ckServerToWebD
 
 	go server.Serve(ckServerListener, serverState)

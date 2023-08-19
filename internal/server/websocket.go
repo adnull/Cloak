@@ -27,7 +27,7 @@ func (WebSocket) processFirstPacket(reqPacket []byte, privateKey crypto.PrivateK
 		return
 	}
 	var hiddenData []byte
-	hiddenData, err = base64.StdEncoding.DecodeString(req.Header.Get("hidden"))
+	hiddenData, _ = base64.StdEncoding.DecodeString(req.Header.Get("hidden"))
 
 	fragments, err = WebSocket{}.unmarshalHidden(hiddenData, privateKey)
 	if err != nil {
